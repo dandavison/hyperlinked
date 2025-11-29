@@ -24,12 +24,18 @@ import (
 	"runtime"
 	"sync"
 	"time"
+
+	"golang.org/x/term"
 )
 
 // LinkFormat controls the URL scheme for hyperlinks.
 // Set via HYPERLINKED_FORMAT env var.
 // Supported: "cursor" (default), "wormhole", "vscode"
 var LinkFormat = getEnvDefault("HYPERLINKED_FORMAT", "cursor")
+
+// hyperlinkEnabled is true when hyperlinks should be emitted.
+// Requires stdout to be a TTY and HYPERLINKED_NO_HYPERLINKS to not be set.
+var hyperlinkEnabled = term.IsTerminal(int(os.Stdout.Fd())) && os.Getenv("HYPERLINKED_NO_HYPERLINKS") == ""
 
 func getEnvDefault(key, def string) string {
 	if v := os.Getenv(key); v != "" {
@@ -107,7 +113,11 @@ func RelativeMs(t time.Time) string {
 
 // Hyperlink wraps text in OSC8 escape codes linking to the caller's source location.
 // skip is the number of stack frames to skip (0 = Hyperlink's caller, 1 = caller's caller, etc.)
+// Returns plain text without hyperlink when stdout is not a TTY or HYPERLINKED_NO_HYPERLINKS is set.
 func Hyperlink(text string, skip int) string {
+	if !hyperlinkEnabled {
+		return text
+	}
 	_, file, line, ok := runtime.Caller(skip + 1)
 	if !ok {
 		return text
