@@ -1,4 +1,4 @@
-// Package hyperlinked provides print functions that emit OSC8 hyperlinks
+// Package ps provides print statement functions that emit OSC8 hyperlinks
 // to the source location where the print was called. Clicking the output
 // in a terminal that supports OSC8 will open your editor at that line.
 //
@@ -16,7 +16,7 @@
 //	🟢 Good
 //	🔴 Bad
 //	🟡 In progress
-package hyperlinked
+package ps
 
 import (
 	"fmt"
