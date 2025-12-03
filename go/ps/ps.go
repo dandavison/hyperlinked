@@ -137,3 +137,55 @@ func FormatURL(file string, line int) string {
 	}
 }
 
+// Stack prints the last n stack frames, each as a hyperlink to its source location.
+// Skips runtime internals and starts from the caller of Stack.
+func Stack(n int) {
+	mu.RLock()
+	start := startTime
+	mu.RUnlock()
+
+	ms := int64(0)
+	if !start.IsZero() {
+		ms = time.Since(start).Milliseconds()
+	}
+
+	// Skip 2: runtime.Callers + Stack
+	pcs := make([]uintptr, n+2)
+	got := runtime.Callers(2, pcs)
+	if got == 0 {
+		return
+	}
+	pcs = pcs[:got]
+
+	frames := runtime.CallersFrames(pcs)
+	i := 0
+	for {
+		frame, more := frames.Next()
+		if i >= n {
+			break
+		}
+
+		funcName := frame.Function
+		if idx := lastIndex(funcName, '/'); idx >= 0 {
+			funcName = funcName[idx+1:]
+		}
+
+		text := fmt.Sprintf("[%5d] #%d %s\n", ms, i, funcName)
+		url := FormatURL(frame.File, frame.Line)
+		fmt.Print(FormatOSC8(text, url))
+
+		i++
+		if !more {
+			break
+		}
+	}
+}
+
+func lastIndex(s string, c byte) int {
+	for i := len(s) - 1; i >= 0; i-- {
+		if s[i] == c {
+			return i
+		}
+	}
+	return -1
+}
