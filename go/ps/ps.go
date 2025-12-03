@@ -13,6 +13,7 @@
 //	✅ Success
 //	❌ Failure
 //	🔄 Retry
+//	🕐 Scheduled task execution
 //	🟢 Good
 //	🔴 Bad
 //	🟡 In progress
