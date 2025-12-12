@@ -23,8 +23,12 @@ import (
 	"fmt"
 	"os"
 	"runtime"
+	"strings"
 	"sync"
 	"time"
+
+	"github.com/mattn/go-runewidth"
+	"golang.org/x/term"
 )
 
 // LinkFormat controls the URL scheme for hyperlinks.
@@ -32,11 +36,59 @@ import (
 // Supported: "cursor" (default), "wormhole", "vscode"
 var LinkFormat = getEnvDefault("HYPERLINKED_FORMAT", "cursor")
 
+// Truncate controls whether output is truncated to terminal width.
+// Set HYPERLINKED_NO_TRUNCATE=1 to disable.
+var Truncate = os.Getenv("HYPERLINKED_NO_TRUNCATE") == ""
+
 func getEnvDefault(key, def string) string {
 	if v := os.Getenv(key); v != "" {
 		return v
 	}
 	return def
+}
+
+// termWidth returns the terminal width, or 0 if it cannot be determined.
+func termWidth() int {
+	width, _, err := term.GetSize(int(os.Stdout.Fd()))
+	if err != nil {
+		return 0
+	}
+	return width
+}
+
+// truncateToWidth truncates text to fit within the given width.
+// Preserves trailing newline if present. Uses "…" as ellipsis.
+func truncateToWidth(text string, width int) string {
+	if width <= 0 {
+		return text
+	}
+
+	// Preserve trailing newline
+	hasNewline := strings.HasSuffix(text, "\n")
+	if hasNewline {
+		text = text[:len(text)-1]
+	}
+
+	visibleWidth := runewidth.StringWidth(text)
+	if visibleWidth <= width {
+		if hasNewline {
+			return text + "\n"
+		}
+		return text
+	}
+
+	// Truncate to width-1 to leave room for ellipsis
+	targetWidth := width - 1
+	if targetWidth < 0 {
+		targetWidth = 0
+	}
+
+	result := runewidth.Truncate(text, targetWidth, "…")
+
+	if hasNewline {
+		return result + "\n"
+	}
+	return result
 }
 
 var (
@@ -108,7 +160,11 @@ func RelativeMs(t time.Time) string {
 
 // Hyperlink wraps text in OSC8 escape codes linking to the caller's source location.
 // skip is the number of stack frames to skip (0 = Hyperlink's caller, 1 = caller's caller, etc.)
+// Truncates text to terminal width if Truncate is true.
 func Hyperlink(text string, skip int) string {
+	if Truncate {
+		text = truncateToWidth(text, termWidth())
+	}
 	_, file, line, ok := runtime.Caller(skip + 1)
 	if !ok {
 		return text
@@ -158,6 +214,11 @@ func Stack(n int) {
 	}
 	pcs = pcs[:got]
 
+	width := 0
+	if Truncate {
+		width = termWidth()
+	}
+
 	frames := runtime.CallersFrames(pcs)
 	i := 0
 	for {
@@ -172,6 +233,9 @@ func Stack(n int) {
 		}
 
 		text := fmt.Sprintf("[%5d] #%d %s\n", ms, i, funcName)
+		if Truncate && width > 0 {
+			text = truncateToWidth(text, width)
+		}
 		url := FormatURL(frame.File, frame.Line)
 		fmt.Print(FormatOSC8(text, url))
 
