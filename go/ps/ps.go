@@ -23,12 +23,12 @@ import (
 	"fmt"
 	"os"
 	"runtime"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/mattn/go-runewidth"
-	"golang.org/x/term"
 )
 
 // LinkFormat controls the URL scheme for hyperlinks.
@@ -49,11 +49,12 @@ func getEnvDefault(key, def string) string {
 
 // termWidth returns the terminal width, or 0 if it cannot be determined.
 func termWidth() int {
-	width, _, err := term.GetSize(int(os.Stdout.Fd()))
-	if err != nil {
-		return 0
+	if cols := os.Getenv("HYPERLINKED_COLUMNS"); cols != "" {
+		if width, err := strconv.Atoi(cols); err == nil && width > 0 {
+			return width
+		}
 	}
-	return width
+	return 0
 }
 
 // truncateToWidth truncates text to fit within the given width.
